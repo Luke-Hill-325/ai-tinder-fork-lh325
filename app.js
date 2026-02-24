@@ -111,41 +111,98 @@ function createBadge(card, type) {
   return badge;
 }
 
+function createOverlay(card, type) {
+  if (card.querySelector(`.card__overlay--${type}`)) return;
+  
+  const overlay = document.createElement('div');
+  overlay.className = `card__overlay card__overlay--${type}`;
+  card.appendChild(overlay);
+  return overlay;
+}
+
+function createSwipeText(card, type) {
+  if (card.querySelector(`.card__swipe-text--${type}`)) return;
+  
+  const text = document.createElement('div');
+  text.className = `card__swipe-text card__swipe-text--${type}`;
+  
+  if (type === 'like') text.textContent = 'LIKE';
+  else if (type === 'nope') text.textContent = 'NOPE';
+  else if (type === 'super') text.textContent = 'SUPER LIKE';
+  
+  card.appendChild(text);
+  return text;
+}
+
 function removeBadges(card) {
   const badges = card.querySelectorAll('.card__badge');
   badges.forEach(badge => badge.remove());
 }
 
-function updateBadgeVisibility(card, x, y) {
+function removeOverlays(card) {
+  const overlays = card.querySelectorAll('.card__overlay');
+  overlays.forEach(overlay => overlay.remove());
+}
+
+function removeSwipeTexts(card) {
+  const texts = card.querySelectorAll('.card__swipe-text');
+  texts.forEach(text => text.remove());
+}
+
+function updateSwipeFeedback(card, x, y) {
+  // Create badges, overlays, and text elements if they don't exist
   const likeBadge = card.querySelector('.card__badge--like') || createBadge(card, 'like');
   const nopeBadge = card.querySelector('.card__badge--nope') || createBadge(card, 'nope');
   const superBadge = card.querySelector('.card__badge--super') || createBadge(card, 'super');
+  const likeOverlay = card.querySelector('.card__overlay--like') || createOverlay(card, 'like');
+  const nopeOverlay = card.querySelector('.card__overlay--nope') || createOverlay(card, 'nope');
+  const superOverlay = card.querySelector('.card__overlay--super') || createOverlay(card, 'super');
+  const likeText = card.querySelector('.card__swipe-text--like') || createSwipeText(card, 'like');
+  const nopeText = card.querySelector('.card__swipe-text--nope') || createSwipeText(card, 'nope');
+  const superText = card.querySelector('.card__swipe-text--super') || createSwipeText(card, 'super');
   
   // Calculate visibility based on position
-  const xProgress = Math.abs(x) / SWIPE_THRESHOLD;
-  const yProgress = Math.abs(y) / SUPER_LIKE_THRESHOLD;
+  const xProgress = Math.min(Math.abs(x) / SWIPE_THRESHOLD, 1);
+  const yProgress = Math.min(Math.abs(y) / SUPER_LIKE_THRESHOLD, 1);
   
-  // Show like badge when swiping right
-  if (x > 0 && likeBadge) {
-    likeBadge.style.opacity = Math.min(xProgress, 1);
-    likeBadge.style.transform = `scale(${0.8 + Math.min(xProgress, 1) * 0.2}) rotate(15deg)`;
-  } else if (likeBadge) {
+  // Reset all overlays and texts first
+  likeOverlay.style.opacity = 0;
+  nopeOverlay.style.opacity = 0;
+  superOverlay.style.opacity = 0;
+  likeText.style.opacity = 0;
+  nopeText.style.opacity = 0;
+  superText.style.opacity = 0;
+  
+  // Show like feedback when swiping right
+  if (x > 0) {
+    likeBadge.style.opacity = xProgress;
+    likeBadge.style.transform = `scale(${0.8 + xProgress * 0.2}) rotate(15deg)`;
+    likeOverlay.style.opacity = xProgress * 0.8;
+    likeText.style.opacity = xProgress;
+    likeText.style.transform = `rotate(90deg) translateX(-50%) scale(${0.9 + xProgress * 0.1})`;
+  } else {
     likeBadge.style.opacity = 0;
   }
   
-  // Show nope badge when swiping left
-  if (x < 0 && nopeBadge) {
-    nopeBadge.style.opacity = Math.min(xProgress, 1);
-    nopeBadge.style.transform = `scale(${0.8 + Math.min(xProgress, 1) * 0.2}) rotate(-15deg)`;
-  } else if (nopeBadge) {
+  // Show nope feedback when swiping left
+  if (x < 0) {
+    nopeBadge.style.opacity = xProgress;
+    nopeBadge.style.transform = `scale(${0.8 + xProgress * 0.2}) rotate(-15deg)`;
+    nopeOverlay.style.opacity = xProgress * 0.8;
+    nopeText.style.opacity = xProgress;
+    nopeText.style.transform = `rotate(-90deg) translateX(50%) scale(${0.9 + xProgress * 0.1})`;
+  } else {
     nopeBadge.style.opacity = 0;
   }
   
-  // Show super like badge when swiping up (with limited horizontal movement)
-  if (y < 0 && Math.abs(x) < SUPER_LIKE_HORIZONTAL_LIMIT && superBadge) {
-    superBadge.style.opacity = Math.min(yProgress, 1);
-    superBadge.style.transform = `translateX(-50%) scale(${0.8 + Math.min(yProgress, 1) * 0.2})`;
-  } else if (superBadge) {
+  // Show super like feedback when swiping up (with limited horizontal movement)
+  if (y < 0 && Math.abs(x) < SUPER_LIKE_HORIZONTAL_LIMIT) {
+    superBadge.style.opacity = yProgress;
+    superBadge.style.transform = `translateX(-50%) scale(${0.8 + yProgress * 0.2})`;
+    superOverlay.style.opacity = yProgress * 0.8;
+    superText.style.opacity = yProgress;
+    superText.style.transform = `translateX(-50%) scale(${0.9 + yProgress * 0.1})`;
+  } else {
     superBadge.style.opacity = 0;
   }
 }
@@ -184,8 +241,8 @@ function onDragMove(e) {
   // Apply transform
   currentCard.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotation}deg)`;
   
-  // Update badge visibility
-  updateBadgeVisibility(currentCard, currentX, currentY);
+  // Update badge and overlay visibility
+  updateSwipeFeedback(currentCard, currentX, currentY);
   
   if (e.type.includes('touch')) {
     e.preventDefault();
@@ -218,14 +275,18 @@ function onDragEnd(e) {
     // Snap back if threshold not met
     currentCard.style.transform = '';
     removeBadges(currentCard);
+    removeOverlays(currentCard);
+    removeSwipeTexts(currentCard);
   }
   
   currentCard = null;
 }
 
 function performSwipeAction(card, action) {
-  // Remove badges before animation
+  // Remove badges, overlays, and texts before animation
   removeBadges(card);
+  removeOverlays(card);
+  removeSwipeTexts(card);
   
   // Add animation class
   card.classList.add(`swipe-${action === 'super' ? 'up' : action === 'like' ? 'right' : 'left'}`);
