@@ -78,6 +78,220 @@ const superLikeBtn = document.getElementById("superLikeBtn");
 
 let profiles = [];
 
+// -------------------
+// Swipe Logic
+// -------------------
+const SWIPE_THRESHOLD = 100; // pixels to trigger swipe
+const SUPER_LIKE_THRESHOLD = 120; // pixels upward to trigger super like
+const SUPER_LIKE_HORIZONTAL_LIMIT = 80; // limit horizontal movement for super like
+
+let currentCard = null;
+let isDragging = false;
+let startX = 0;
+let startY = 0;
+let currentX = 0;
+let currentY = 0;
+
+function getTopCard() {
+  const cards = deckEl.querySelectorAll('.card:not(.swipe-left):not(.swipe-right):not(.swipe-up)');
+  return cards.length > 0 ? cards[cards.length - 1] : null;
+}
+
+function createBadge(card, type) {
+  if (card.querySelector(`.card__badge--${type}`)) return;
+  
+  const badge = document.createElement('div');
+  badge.className = `card__badge card__badge--${type}`;
+  
+  if (type === 'like') badge.textContent = 'LIKE';
+  else if (type === 'nope') badge.textContent = 'NOPE';
+  else if (type === 'super') badge.textContent = 'SUPER LIKE';
+  
+  card.appendChild(badge);
+  return badge;
+}
+
+function removeBadges(card) {
+  const badges = card.querySelectorAll('.card__badge');
+  badges.forEach(badge => badge.remove());
+}
+
+function updateBadgeVisibility(card, x, y) {
+  const likeBadge = card.querySelector('.card__badge--like') || createBadge(card, 'like');
+  const nopeBadge = card.querySelector('.card__badge--nope') || createBadge(card, 'nope');
+  const superBadge = card.querySelector('.card__badge--super') || createBadge(card, 'super');
+  
+  // Calculate visibility based on position
+  const xProgress = Math.abs(x) / SWIPE_THRESHOLD;
+  const yProgress = Math.abs(y) / SUPER_LIKE_THRESHOLD;
+  
+  // Show like badge when swiping right
+  if (x > 0 && likeBadge) {
+    likeBadge.style.opacity = Math.min(xProgress, 1);
+    likeBadge.style.transform = `scale(${0.8 + Math.min(xProgress, 1) * 0.2}) rotate(15deg)`;
+  } else if (likeBadge) {
+    likeBadge.style.opacity = 0;
+  }
+  
+  // Show nope badge when swiping left
+  if (x < 0 && nopeBadge) {
+    nopeBadge.style.opacity = Math.min(xProgress, 1);
+    nopeBadge.style.transform = `scale(${0.8 + Math.min(xProgress, 1) * 0.2}) rotate(-15deg)`;
+  } else if (nopeBadge) {
+    nopeBadge.style.opacity = 0;
+  }
+  
+  // Show super like badge when swiping up (with limited horizontal movement)
+  if (y < 0 && Math.abs(x) < SUPER_LIKE_HORIZONTAL_LIMIT && superBadge) {
+    superBadge.style.opacity = Math.min(yProgress, 1);
+    superBadge.style.transform = `translateX(-50%) scale(${0.8 + Math.min(yProgress, 1) * 0.2})`;
+  } else if (superBadge) {
+    superBadge.style.opacity = 0;
+  }
+}
+
+function onDragStart(e) {
+  if (isDragging) return;
+  
+  currentCard = getTopCard();
+  if (!currentCard) return;
+  
+  isDragging = true;
+  currentCard.classList.add('swiping');
+  
+  const point = e.type.includes('touch') ? e.touches[0] : e;
+  startX = point.clientX;
+  startY = point.clientY;
+  currentX = 0;
+  currentY = 0;
+  
+  // Prevent default to stop scrolling while swiping
+  if (e.type.includes('touch')) {
+    e.preventDefault();
+  }
+}
+
+function onDragMove(e) {
+  if (!isDragging || !currentCard) return;
+  
+  const point = e.type.includes('touch') ? e.touches[0] : e;
+  currentX = point.clientX - startX;
+  currentY = point.clientY - startY;
+  
+  // Add rotation based on horizontal movement
+  const rotation = currentX * 0.05;
+  
+  // Apply transform
+  currentCard.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotation}deg)`;
+  
+  // Update badge visibility
+  updateBadgeVisibility(currentCard, currentX, currentY);
+  
+  if (e.type.includes('touch')) {
+    e.preventDefault();
+  }
+}
+
+function onDragEnd(e) {
+  if (!isDragging || !currentCard) return;
+  
+  isDragging = false;
+  currentCard.classList.remove('swiping');
+  
+  // Determine swipe action
+  let action = null;
+  
+  // Check for super like first (upward swipe with limited horizontal movement)
+  if (currentY < -SUPER_LIKE_THRESHOLD && Math.abs(currentX) < SUPER_LIKE_HORIZONTAL_LIMIT) {
+    action = 'super';
+  }
+  // Then check for regular swipes
+  else if (currentX > SWIPE_THRESHOLD) {
+    action = 'like';
+  } else if (currentX < -SWIPE_THRESHOLD) {
+    action = 'nope';
+  }
+  
+  if (action) {
+    performSwipeAction(currentCard, action);
+  } else {
+    // Snap back if threshold not met
+    currentCard.style.transform = '';
+    removeBadges(currentCard);
+  }
+  
+  currentCard = null;
+}
+
+function performSwipeAction(card, action) {
+  // Remove badges before animation
+  removeBadges(card);
+  
+  // Add animation class
+  card.classList.add(`swipe-${action === 'super' ? 'up' : action === 'like' ? 'right' : 'left'}`);
+  
+  // Log action
+  const profileName = card.querySelector('.card__title')?.textContent || 'Unknown';
+  console.log(`${action === 'like' ? 'Like' : action === 'super' ? 'Super Like' : 'Nope'} on ${profileName}`);
+  
+  // Remove card from DOM after animation
+  setTimeout(() => {
+    card.remove();
+    checkEmptyDeck();
+  }, 500);
+}
+
+function checkEmptyDeck() {
+  const remainingCards = deckEl.querySelectorAll('.card');
+  if (remainingCards.length === 0) {
+    showEmptyDeck();
+  }
+}
+
+function showEmptyDeck() {
+  const emptyMsg = document.createElement('div');
+  emptyMsg.className = 'deck__empty';
+  emptyMsg.innerHTML = `
+    <div class="deck__empty-icon">🔥</div>
+    <div class="deck__empty-text">No more profiles!</div>
+    <div class="deck__empty-subtext">Click shuffle to see new people</div>
+  `;
+  deckEl.appendChild(emptyMsg);
+}
+
+function removeEmptyDeckMessage() {
+  const emptyMsg = deckEl.querySelector('.deck__empty');
+  if (emptyMsg) {
+    emptyMsg.remove();
+  }
+}
+
+// Attach swipe handlers to deck
+deckEl.addEventListener('mousedown', onDragStart);
+deckEl.addEventListener('touchstart', onDragStart, { passive: false });
+
+document.addEventListener('mousemove', onDragMove);
+document.addEventListener('touchmove', onDragMove, { passive: false });
+
+document.addEventListener('mouseup', onDragEnd);
+document.addEventListener('touchend', onDragEnd);
+
+// Button handlers
+likeBtn.addEventListener('click', () => {
+  const card = getTopCard();
+  if (card) performSwipeAction(card, 'like');
+});
+
+nopeBtn.addEventListener('click', () => {
+  const card = getTopCard();
+  if (card) performSwipeAction(card, 'nope');
+});
+
+superLikeBtn.addEventListener('click', () => {
+  const card = getTopCard();
+  if (card) performSwipeAction(card, 'super');
+});
+
 function renderDeck() {
   deckEl.setAttribute("aria-busy", "true");
   deckEl.innerHTML = "";
@@ -128,20 +342,11 @@ function renderDeck() {
 }
 
 function resetDeck() {
+  removeEmptyDeckMessage();
   profiles = generateProfiles(12);
   renderDeck();
 }
 
-// Controls (intentionally not implemented)
-likeBtn.addEventListener("click", () => {
-  console.log("Like clicked.");
-});
-nopeBtn.addEventListener("click", () => {
-  console.log("Nope clicked.");
-});
-superLikeBtn.addEventListener("click", () => {
-  console.log("Super Like clicked.");
-});
 shuffleBtn.addEventListener("click", resetDeck);
 
 // Boot

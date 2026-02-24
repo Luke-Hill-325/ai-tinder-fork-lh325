@@ -26,6 +26,8 @@ body {
   color: #fff;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .app {
@@ -80,9 +82,13 @@ body {
   border-radius: 999px;
   padding: 8px 12px;
   cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.1s ease;
 }
 .ghost-btn:hover {
   border-color: rgba(255, 255, 255, 0.3);
+}
+.ghost-btn:active {
+  transform: scale(0.95);
 }
 
 .app__main {
@@ -96,6 +102,7 @@ body {
   width: min(100%, 460px);
   margin: 0 auto;
   aspect-ratio: 9 / 14.5;
+  touch-action: none;
 }
 
 .card {
@@ -106,14 +113,37 @@ body {
   box-shadow: var(--shadow);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  transform: translateY(0) scale(1);
   will-change: transform;
-  transition: transform 220ms ease, opacity 220ms ease, filter 220ms ease;
+  touch-action: none;
+  cursor: grab;
 }
 
-.card:nth-child(1) { transform: translateY(0) scale(1); }
-.card:nth-child(2) { transform: translateY(10px) scale(0.985); filter: brightness(0.95); }
-.card:nth-child(3) { transform: translateY(20px) scale(0.97); filter: brightness(0.9); }
+.card:active {
+  cursor: grabbing;
+}
+
+/* Stacked cards styling */
+.card:nth-last-child(1) { 
+  transform: translateY(0) scale(1); 
+  z-index: 3;
+}
+.card:nth-last-child(2) { 
+  transform: translateY(10px) scale(0.985); 
+  filter: brightness(0.95); 
+  z-index: 2;
+}
+.card:nth-last-child(3) { 
+  transform: translateY(20px) scale(0.97); 
+  filter: brightness(0.9); 
+  z-index: 1;
+}
+
+/* Hide cards beyond the third one */
+.card:nth-last-child(n+4) {
+  transform: translateY(30px) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+}
 
 .card__media {
   height: 70%;
@@ -121,6 +151,7 @@ body {
   object-fit: cover;
   display: block;
   background: #222436;
+  pointer-events: none;
 }
 
 .card__body {
@@ -129,6 +160,7 @@ body {
   grid-template-rows: auto 1fr auto;
   padding: 14px 14px 12px;
   gap: 8px;
+  pointer-events: none;
 }
 
 .title-row {
@@ -166,6 +198,59 @@ body {
   border-radius: 999px;
 }
 
+/* Status badges for swipe feedback */
+.card__badge {
+  position: absolute;
+  top: 40px;
+  padding: 8px 16px;
+  border: 4px solid;
+  border-radius: 12px;
+  font-size: 32px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.card__badge--like {
+  right: 30px;
+  color: var(--like);
+  border-color: var(--like);
+  transform: rotate(15deg);
+}
+
+.card__badge--nope {
+  left: 30px;
+  color: var(--nope);
+  border-color: var(--nope);
+  transform: rotate(-15deg);
+}
+
+.card__badge--super {
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  color: var(--super);
+  border-color: var(--super);
+}
+
+.card__badge.visible {
+  opacity: 1;
+  transform: scale(1) rotate(15deg);
+}
+
+.card__badge--nope.visible {
+  transform: scale(1) rotate(-15deg);
+}
+
+.card__badge--super.visible {
+  transform: translateX(-50%) scale(1);
+}
+
 .controls {
   display: flex;
   align-items: center;
@@ -184,6 +269,15 @@ body {
   line-height: 0;
   display: grid;
   place-items: center;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.ctrl:hover {
+  filter: brightness(1.1);
+}
+
+.ctrl:active {
+  transform: scale(0.9);
 }
 
 .ctrl--nope { background: var(--nope); }
@@ -197,7 +291,60 @@ body {
   font-size: 14px;
 }
 
+/* Swipe animation classes */
+.card.swiping {
+  transition: none;
+}
+
+.card.swipe-left {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+  transform: translateX(-150%) rotate(-30deg) !important;
+  opacity: 0;
+}
+
+.card.swipe-right {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+  transform: translateX(150%) rotate(30deg) !important;
+  opacity: 0;
+}
+
+.card.swipe-up {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+  transform: translateY(-150%) scale(0.8) !important;
+  opacity: 0;
+}
+
+/* Empty deck message */
+.deck__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.deck__empty-icon {
+  font-size: 64px;
+  opacity: 0.5;
+}
+
+.deck__empty-text {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.deck__empty-subtext {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
 @media (max-width: 520px) {
   .deck { width: 100%; }
   .ctrl { width: 56px; height: 56px; font-size: 24px; }
+  .card__badge { font-size: 24px; padding: 6px 12px; }
 }
